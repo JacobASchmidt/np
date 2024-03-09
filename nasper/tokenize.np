@@ -1,0 +1,234 @@
+module nasper
+
+type Token union 
+    -- primary literals
+    Integer    str      --done
+    Float      str      --done
+    Identifier str      --done
+    -- math  
+    Plus             () --done
+    Minus            () --done
+    Times            () --done
+    Divide           () --done
+    Mod              () --done
+    -- composite literals
+    Pipe             () --done
+    LParen           () --done
+    RParen           () --done
+    LBrace           () --done
+    RBrace           () --done
+    LBracket         () --done
+    RBracket         () --done
+    Comma            () --done
+    Dot              () --done
+    Elipsis          () --done
+    -- whitespace lol
+    Epsilon          () --done
+    Indent           () --done
+    UnIndent         () --done
+    -- exprs
+    Equals           () --done
+    Arrow            () --done
+    SingleUnderscore ()--done
+    Is               ()--done
+    Not              ()--done
+    In               ()--done
+    Update           ()--done
+    For              ()--done
+    To               ()--done
+    And              ()
+    Or               ()
+    -- type
+    Question         () --done
+    Maybe            () --done
+    Struct           ()--done
+    Union            ()--done
+    Type             ()--done
+    -- class
+    Interface        ()--done
+    Set              ()--done
+    -- stmts
+    Module           ()--done
+    Def              ()--done
+    Const            ()--done
+    Assign           () --done
+    If               ()--done
+    Match            ()--done
+    Case             ()--done
+    -- comment
+    Pound            () --done
+
+def takeIdentifier(first str, rest |str|) (str, |Token|)
+    ident, rest = streams.Cut(rest, (el) => isIdentifier(el), startWith=[first])
+    return strings.Join(ident, ''), rest 
+
+def tokenizeIdentifier(first str, rest |str|, tabs int) |Token|
+    ident, rest = takeIdentifier(first, rest)
+    match ident 
+        case '_'
+            return |Token.SingleUnderscore(), ...Tokenize(rest, tabs)|
+        case 'is'
+            return |Token.Is(), ...Tokenize(rest, tabs)|
+        case 'not'
+            return |Token.Not(), ...Tokenize(rest, tabs)|
+        case 'in'
+            return |Token.In(), ...Tokenize(rest, tabs)|
+        case 'update'
+            return |Token.Update(), ...Tokenize(rest, tabs)|
+        case 'for'
+            return |Token.For(), ...Tokenize(rest, tabs)|
+        case 'to'
+            return |Token.To(), ...Tokenize(rest, tabs)|
+        case 'struct'
+            return |Token.Struct(), ...Tokenize(rest, tabs)|
+        case 'union'
+            return |Token.Union(), ...Tokenize(rest, tabs)|
+        case 'type'
+            return |Token.Type(), ...Tokenize(rest, tabs)|
+        case 'interface'
+            return |Token.Interface(), ...Tokenize(rest, tabs)|
+        case 'set'
+            return |Token.Set(), ...Tokenize(rest, tabs)|
+        case 'module'
+            return |Token.Module(), ...Tokenize(rest, tabs)|
+        case 'def'
+            return |Token.Def(), ...Tokenize(rest, tabs)|
+        case 'const'
+            return |Token.Const(), ...Tokenize(rest, teabs)|
+        case 'if'
+            return |Token.If(), ...Tokenize(rest, tabs)|
+        case 'match'
+            return |Token.Match(), ...Tokenize(rest, tabs)|
+        case 'case'
+            return |Token.Case(), ...Tokenize(rest, tabs)|
+        case 'and'
+            return |Token.And(), ...Tokenize(rest, tabs)|
+        case 'or'
+            return |Token.Or(), ...Tokenize(rest, tabs)|
+        case el
+            return |Token.Identifier(el), ...Tokenize(rest, tabs)|
+
+def badChar(expected str, got str) never 
+    panic('expected {expected}, got {got}', {.expected, .got})
+
+def earlyEOF(expected str) never 
+    panic('unexpected EOF: expecting {expecting}', {.expecting})
+
+def tokenizeDots(rest |str|, tabs int) |Token|
+    if rest is ||
+        return |Token.Dot()|
+    |first, ...rest| = rest 
+    if first != '.'
+        return |Token.Dot(), ...Tokenize(|first, ...rest|, tabs)
+    if rest is ||
+        earlyEOF('.')
+    |first, ...rest| = rest 
+    if first != '.'
+        badChar('.', first)
+    return |Token.Elipsis(), ...Tokenize(rest, tabs)|
+
+def tokenizeWhitespace(first str, rest |str|, tabs int) |Token|
+    wspace, rest = strings.Cut(rest, (el) => isWhitespace(el), startWith=[first])
+    wspace = strings.Join(wspace, '')
+    index = strings.RIndex(wspace, '\n')
+    if index is none()
+        return Tokenize(rest)
+    some(index) = index
+    if not all(stream(wspace[index+1:]), (el) => el == ' ')
+        panic('unexpected whitespace char')
+    numSpaces = len(wspace) - index 
+    if numSpaces % 4 != 0
+        panic('bad indentation. indentation must be divisible by 4')
+    numTabs = numSpaces / 4
+    if numTabs == tabs
+        return Tokenize(rest, tabs)
+    if numTabs > tabs
+        return chain(|Token.Indent() for _ in range(numTabs - tabs)|, Tokenize(rest, numTabs))
+    --assert numTabs < tabs 
+    return chain(|Tiken.UnIndent() for _ in range(tabs - numTabs)|, Tokenize(rest, numTabs))
+def tokenizeEquals(rest |str|, tabs int) |Token|
+    if rest is ||
+        return |Token.Assign()|
+    |first, ...rest| = rest 
+    if first == '='
+        return |Token.Equals(), ...Tokenize(rest, tabs)|
+    if first == '>'
+        return |Token.Arrow(), ...Tokenize(rest, tabs)|
+    return |Token.Assign(), ...Tokenize(|first, ...rest|, tabs)|
+
+def tokenizeQuestion(rest |str|, tabs int) |Token|
+    if rest is ||
+        return |Token.Question()|
+    |first, ...rest| = rest 
+    if first == '?'
+        return |Token.Maybe(), ...Tokenize(rest, tabs)|
+    return |Token.Question(), ...Tokenize(|first, ...rest|, tabs)|
+
+
+def tokenizeFloat(cur [str], rest |str|, tabs int) |Token|
+    match rest
+        case |digit, ...rest| if isDigit(digit)
+            return tokenizeFloat([...cur, digit], rest, tabs)
+        case |other, ...rest|
+            return |Token.Float(strings.Join(cur)), ...Tokenize(|other, ...rest|, tabs)|
+        case ||
+            return |Token.Float(strings.Join(cur))
+
+def tokenizeNumber(cur [str], rest |str|, tabs int) |Token|    
+    match rest 
+        case |'.', ...rest|
+            return tokenizeFloat([...cur, '.'], rest, tabs)
+        case |digit, ...rest| if isDigit(digit)
+            return tokenizeNumber([...cur, digit], rest, tabs)
+        case |other, ...rest|
+            return |Token.Integer(strings.Join(cur)), ...Tokenize(|other, ...rest|, tabs)|
+        case ||
+            return |Token.Integer(strings.Join(cur))|
+
+def Tokenize(input |str|, tabs int = 0) |Token|
+    if input is ||
+        return ||
+    |first, ...rest| = input 
+    match first 
+        case '+'
+            return |Token.Plus(), ...Tokenize(rest, tabs)|
+        case '-'
+            return |Token.Minus(), ...Tokenize(rest, tabs)|
+        case '*'
+            return |Token.Times(), ...Tokenize(rest, tabs)|
+        case '/'
+            return |Token.Divide(), ...Tokenize(rest, tabs)|
+        case '%'
+            return |Token.Mod(), ...Tokenize(rest, tabs)|
+        case '|'
+            return |Token.Pipe(), ...Tokenize(rest, tabs)|
+        case '('
+            return |Token.LParen(), ...Tokenize(rest, tabs)|
+        case ')'
+            return |Token.RParen(), ...Tokenize(rest, tabs)|
+        case '{'
+            return |Token.LBrace(), ...Tokenize(rest, tabs)|
+        case '}'
+            return |Token.RBtace(), ...Tokenize(rest, tabs)|
+        case '['
+            return |Token.LBracket(), ...Tokenize(rest, tabs)|
+        case ']'
+            return |Token.RBracket(), ...Tokenize(rest, tabs)|
+        case ','
+            return |Token.Comma(), ...Tokenize(rest, tabs)|
+        case '.'
+            return tokeknizeDots(rest, tabs)
+        case el if isWhitespace(el):
+            return tokenizeWhitespace(el, rest, tabs)
+        case '='
+            return tokenizeEquals(rest, tabs)
+        case '!'
+            return expectNotEq(rest, tabs)
+        case '?'
+            return tokenizeQuestion(el, rest, tabs)
+        case '#'
+            return |Token.Pound(), ...Tokenize(rest)|
+        case el if isNumeric(el)
+            return tokenizeNumber([el], rest, tabs)
+        case el if isIdentifierBegining(el)
+            return tokenizeIdentifier(el, tabs)
