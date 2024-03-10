@@ -1,0 +1,137 @@
+module nasper
+
+import (
+    'strings'
+)
+
+type Token union 
+    -- primary literals
+    Integer    str      --done
+    Float      str      --done
+    Identifier str      --done
+    -- math  
+    Plus             () --done
+    Minus            () --done
+    Times            () --done
+    Divide           () --done
+    Mod              () --done
+    -- composite literals
+    Pipe             () --done
+    LParen           () --done
+    RParen           () --done
+    LBrace           () --done
+    RBrace           () --done
+    LBracket         () --done
+    RBracket         () --done
+    Comma            () --done
+    Dot              () --done
+    Elipsis          () --done
+    -- whitespace lol
+    Epsilon          () --done
+    Indent           () --done
+    UnIndent         () --done
+    EOL              () --done
+    -- exprs
+    Equals           () --done
+    Arrow            () --done
+    SingleUnderscore ()--done
+    Is               ()--done
+    Not              ()--done
+    In               ()--done
+    Update           ()--done
+    For              ()--done
+    To               ()--done
+    And              ()
+    Or               ()
+    NotEquals        ()
+    -- type
+    Question         () --done
+    Maybe            () --done
+    Struct           ()--done
+    Union            ()--done
+    Type             ()--done
+    -- class
+    Interface        ()--done
+    Set              ()--done
+    -- stmts
+    Module           ()--done
+    Def              ()--done
+    Const            ()--done
+    Assign           () --done
+    If               ()--done
+    Match            ()--done
+    Case             ()--done
+    Return           ()
+    -- comment
+    Pound            () --done
+
+def Tokenize(input str, tabs int) |Token|
+    if input == ''
+        return ||
+    match input[0] 
+        case '+'
+            return |Token.Plus(), ...Tokenize(input[1:], tabs)|
+        case '-'
+            return |Token.Minus(), ...Tokenize(input[1:], tabs)|
+        case '*'
+            return |Token.Times(), ...Tokenize(input[1:], tabs)|
+        case '/'
+            return |Token.Divide(), ...Tokenize(input[1:], tabs)|
+        case '%'
+            return |Token.Mod(), ...Tokenize(input[1:], tabs)|
+        case '|'
+            return |Token.Pipe(), ...Tokenize(input[1:], tabs)|
+        case '('
+            return |Token.LParen(), ...Tokenize(input[1:], tabs)|
+        case ')'
+            return |Token.RParen(), ...Tokenize(input[1:], tabs)|
+        case '{'
+            return |Token.LBrace(), ...Tokenize(input[1:], tabs)|
+        case '}'
+            return |Token.RBrace(), ...Tokenize(input[1:], tabs)|
+        case '['
+            return |Token.LBracket(), ...Tokenize(input[1:], tabs)|
+        case ']'
+            return |Token.RBracket(), ...Tokenize(input[1:], tabs)|
+        case ','
+            return |Token.Comma(), ...Tokenize(input[1:], tabs)|
+        case '.'
+            if strings.StartsWith(input, '...')
+                return |Token.Elipsis(), ...Tokenize(input[3:], tabs)|
+            return |Token.Dot(), ...Tokenize(input[1:], tabs)|
+        case el if isWhitespace(el):
+            wspace, rest = strings.Span(input, (el) => isWhitespace(el))
+            index = strings.FindRightmost(input, '\n')
+            if index is none()
+                return Tokenize(input[len(wspace):], tabs)
+            some(index) = index
+            spaces = wspace[index+1:]
+            numSpaces = len(spaces)
+            if numSpaces mod 4 != 0
+                panic('indentation must be multiple of 4')
+            numTabs = numSpaces / 4
+            if numTabs > tabs 
+                return chain(
+                    |Token.EOL()|, 
+                    |Token.Indent() for _ in range(numTabs - tabs)|, 
+                    Tokenize(rest, numSpaces),
+                )
+            if numTabs < tabs
+                return chain(
+                    |Token.EOL()|,
+                    |Token.UnIndent() for _ in range(tabs - numTabs)|,
+                    Tokenize(rest, numSpaces)
+                )
+            return |Token.EOL(), ...Tokenize(rest, numSpaces)|
+        case '='
+            return tokenizeEquals(rest, tabs)
+        case '!'
+            return expectNotEq(rest, tabs)
+        case '?'
+            return tokenizeQuestion(el, rest, tabs)
+        case '#'
+            return |Token.Pound(), ...Tokenize(rest)|
+        case el if isDigit(el)
+            return tokenizeNumber([el], rest, tabs)
+        case el if isIdentifierBegining(el)
+            return tokenizeIdentifier(el, tabs)
