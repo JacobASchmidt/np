@@ -59,7 +59,7 @@ type Token union
     Pound            () --done
 
 def takeIdentifier(first str, rest |str|) (str, |Token|)
-    ident, rest = streams.Cut(rest, (el) => isIdentifier(el), startWith=[first])-- need to implement
+    ident, rest = streams.Cut(rest, (el) => isIdentifier(el), startWith=[first])
     return strings.Join(ident, ''), rest 
 
 def tokenizeIdentifier(first str, rest |str|, tabs int) |Token|
@@ -128,7 +128,7 @@ def tokenizeDots(rest |str|, tabs int) |Token|
     return |Token.Elipsis(), ...Tokenize(rest, tabs)|
 
 def tokenizeWhitespace(first str, rest |str|, tabs int) |Token|
-    wspace, rest = strings.Cut(rest, (el) => isWhitespace(el), startWith=[first])-- need to implement
+    wspace, rest = strings.Cut(rest, (el) => isWhitespace(el), startWith=[first])
     wspace = strings.Join(wspace, '')
     index = strings.RIndex(wspace, '\n')
     if index is none()
@@ -167,7 +167,7 @@ def tokenizeQuestion(rest |str|, tabs int) |Token|
 
 def tokenizeFloat(cur [str], rest |str|, tabs int) |Token|
     match rest
-        case |digit, ...rest| if isDigit(digit) -- need to implement
+        case |digit, ...rest| if isDigit(digit)
             return tokenizeFloat([...cur, digit], rest, tabs)
         case |other, ...rest|
             return |Token.Float(strings.Join(cur)), ...Tokenize(|other, ...rest|, tabs)|
@@ -178,12 +178,21 @@ def tokenizeNumber(cur [str], rest |str|, tabs int) |Token|
     match rest 
         case |'.', ...rest|
             return tokenizeFloat([...cur, '.'], rest, tabs)
-        case |digit, ...rest| if isDigit(digit) -- need to implement
+        case |digit, ...rest| if isDigit(digit)
             return tokenizeNumber([...cur, digit], rest, tabs)
         case |other, ...rest|
             return |Token.Integer(strings.Join(cur)), ...Tokenize(|other, ...rest|, tabs)|
         case ||
             return |Token.Integer(strings.Join(cur))|
+
+def isWhitespace(el str) bool
+    return accepts(/[\t\n ]/, el)
+def isDigit(el str) bool
+    return accepts(/[0-9]/, el)
+def isIdentifier(el str) bool 
+    return accepts(/[a-zA-Z0-9_]/, el)
+def isIdentifierBegining(el str) bool 
+    return accepts(/[a-zA-Z_]/, el)
 
 def Tokenize(input |str|, tabs int = 0) |Token|
     if input is ||
@@ -228,7 +237,7 @@ def Tokenize(input |str|, tabs int = 0) |Token|
             return tokenizeQuestion(el, rest, tabs)
         case '#'
             return |Token.Pound(), ...Tokenize(rest)|
-        case el if isNumeric(el) -- need to implement
+        case el if isDigit(el)
             return tokenizeNumber([el], rest, tabs)
-        case el if isIdentifierBegining(el) -- need to implement 
+        case el if isIdentifierBegining(el)
             return tokenizeIdentifier(el, tabs)
